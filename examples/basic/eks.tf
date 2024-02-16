@@ -19,7 +19,7 @@ resource "aws_security_group" "worker_group_mgmt_one" {
     protocol  = "tcp"
 
     cidr_blocks = [
-      "10.0.0.0/8",
+      "0.0.0.0/0",
     ]
   }
 }
@@ -34,7 +34,7 @@ resource "aws_security_group" "worker_group_mgmt_two" {
     protocol  = "tcp"
 
     cidr_blocks = [
-      "192.168.0.0/16",
+      "0.0.0.0/0",
     ]
   }
 }
@@ -49,9 +49,7 @@ resource "aws_security_group" "all_worker_mgmt" {
     protocol  = "tcp"
 
     cidr_blocks = [
-      "10.0.0.0/8",
-      "172.16.0.0/12",
-      "192.168.0.0/16",
+      "0.0.0.0/0",
     ]
   }
 }
@@ -61,10 +59,10 @@ module "vpc" {
   version = "~> 2.78"
 
   name                 = "test-vpc"
-  cidr                 = "10.0.0.0/16"
+  cidr                 = "10.111.0.0/16"
   azs                  = data.aws_availability_zones.available.names
-  private_subnets      = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
-  public_subnets       = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
+  private_subnets      = ["10.111.2.0/24", "10.111.12.0/24"]
+  public_subnets       = ["10.111.1.0/24", "10.111.11.0/24"]
   enable_nat_gateway   = true
   single_nat_gateway   = true
   enable_dns_hostnames = true
@@ -85,9 +83,10 @@ module "eks" {
   version = "~> 17.0"
 
   cluster_name    = local.cluster_name
-  cluster_version = "1.21"
+  cluster_version = "1.27"
   subnets         = module.vpc.private_subnets
   enable_irsa     = true
+  cluster_endpoint_public_access = true
 
   tags = {
     Environment = "test"
@@ -102,20 +101,14 @@ module "eks" {
       name                          = "worker-group-1"
       instance_type                 = "t3.small"
       additional_userdata           = "echo foo bar"
-      asg_desired_capacity          = 2
-      additional_security_group_ids = [aws_security_group.worker_group_mgmt_one.id]
-    },
-    {
-      name                          = "worker-group-2"
-      instance_type                 = "t3.medium"
-      additional_userdata           = "echo foo bar"
-      additional_security_group_ids = [aws_security_group.worker_group_mgmt_two.id]
       asg_desired_capacity          = 1
-    },
+      additional_security_group_ids = [aws_security_group.worker_group_mgmt_one.id]
+    }
   ]
 
   worker_additional_security_group_ids = [aws_security_group.all_worker_mgmt.id]
   map_roles                            = var.map_roles
   map_users                            = var.map_users
   map_accounts                         = var.map_accounts
+  
 }
